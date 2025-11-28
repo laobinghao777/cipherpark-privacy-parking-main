@@ -1,0 +1,22 @@
+{
+  "name": "cipherpark-contracts",
+  "version": "1.0.0",
+  "description": "ParkingFeeCalculator FHE Smart Contract",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
+    "verify": "hardhat verify --network sepolia",
+    "clean": "hardhat clean",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "@fhevm/solidity": "^0.9.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.6.0"
+  }
+}
