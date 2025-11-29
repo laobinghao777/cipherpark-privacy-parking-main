@@ -13,7 +13,7 @@ import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
  *  - Decryption: user-only via Relayer SDK userDecrypt
  */
 contract ParkingFeeCalculator is ZamaEthereumConfig {
-    /* ─── Константы и владелец ─────────────────────────────────────────── */
+    /* ─── Constants and Owner ─────────────────────────────────────────── */
     uint64 public constant BLOCK_MINUTES = 30;
     address public owner;
 
@@ -39,11 +39,11 @@ contract ParkingFeeCalculator is ZamaEthereumConfig {
         return "ParkingFeeCalculator/1.0.3-sepolia";
     }
 
-    /* ─── Параметры тарифа ──────────────────────────────────────────────── */
-    /// @notice Цена за один 30-минутный блок, в центах
+    /* ─── Pricing Parameters ──────────────────────────────────────────────── */
+    /// @notice Price per 30-minute block, in cents
     uint64 public pricePerBlock;
 
-    /// @notice Сколько блоков максимум учитываем (например, 96 = 48 часов)
+    /// @notice Maximum billable blocks (e.g., 96 = 48 hours)
     uint16 public maxBlocks;
 
     function setPricePerBlock(uint64 newPrice) external onlyOwner {
@@ -56,18 +56,18 @@ contract ParkingFeeCalculator is ZamaEthereumConfig {
         maxBlocks = newMax;
     }
 
-    /* ─── Хранилище персональных результатов ───────────────────────────── */
-    mapping(address => euint64) private _lastFee; // последний рассчитанный платёж (зашифрованно)
+    /* ─── Storage for User Results ───────────────────────────── */
+    mapping(address => euint64) private _lastFee; // Last calculated fee (encrypted)
 
-    /* ─── События ──────────────────────────────────────────────────────── */
+    /* ─── Events ──────────────────────────────────────────────────────── */
     event Quoted(address indexed user, bytes32 feeHandle);
 
-    /* ─── Публичные геттеры хэндлов ────────────────────────────────────── */
+    /* ─── Public Handle Getters ────────────────────────────────────── */
     function getMyFeeHandle() external view returns (bytes32) {
         return FHE.toBytes32(_lastFee[msg.sender]);
     }
 
-    /* ─── Внутр. помощник: позиция старшего бита у uint16 ──────────────── */
+    /* ─── Internal Helper: MSB Position for uint16 ──────────────── */
     function _msbPos(uint16 x) internal pure returns (uint8) {
         uint8 p = 0;
         while (x > 1) {
@@ -76,33 +76,33 @@ contract ParkingFeeCalculator is ZamaEthereumConfig {
                 ++p;
             }
         }
-        return p; // для x>=1 вернёт позицию старшего бита (0-based)
+        return p; // For x>=1 returns MSB position (0-based)
     }
 
-    /* ─── Основная логика ──────────────────────────────────────────────── */
+    /* ─── Main Logic ──────────────────────────────────────────────── */
 
     /**
-     * @notice Рассчитать платёж за зашифрованные минуты и сохранить шифротекст,
-     *         доступный пользователю для дешифровки (userDecrypt).
-     * @param minutesExt  Внешнее euint64 (зашифрованные минуты)
-     * @param proof       Attestation от Relayer SDK для minutesExt
-     * @return feeHandle  bytes32-хэндл на шифротекст суммы
+     * @notice Calculate fee for encrypted minutes and store ciphertext,
+     *         accessible to user for decryption (userDecrypt).
+     * @param minutesExt  External euint64 (encrypted minutes)
+     * @param proof       Attestation from Relayer SDK for minutesExt
+     * @return feeHandle  bytes32 handle to encrypted fee
      */
     function quote(externalEuint64 minutesExt, bytes calldata proof) external returns (bytes32 feeHandle) {
         require(proof.length > 0, "Empty proof");
 
-        // 1) Импортируем зашифрованные минуты
+        // 1) Import encrypted minutes
         euint64 rem = FHE.fromExternal(minutesExt, proof);
 
-        // 2) Быстрый подсчёт floor(minutes / 30) без div:
-        //    бинарным «вычитанием крупными кусками» 30 * 2^k.
-        //    Потом добавим +1, если остаток > 0 (ceil).
+        // 2) Fast floor(minutes / 30) without div:
+        //    Binary subtraction by chunks of 30 * 2^k
+        //    Then add +1 if remainder > 0 (ceil)
         euint64 blocks = FHE.asEuint64(0);
 
-        // возьмём максимум по старшему биту maxBlocks (достаточно ~16 итераций)
-        uint8 kMax = _msbPos(maxBlocks); // 0..15 для maxBlocks<=65535
+        // Use MSB of maxBlocks (sufficient ~16 iterations)
+        uint8 kMax = _msbPos(maxBlocks); // 0..15 for maxBlocks<=65535
 
-        // идём k = kMax..0
+        // Iterate k = kMax..0
         for (uint8 ki = kMax + 1; ki > 0; ) {
             unchecked {
                 --ki;
@@ -111,7 +111,7 @@ contract ParkingFeeCalculator is ZamaEthereumConfig {
             // chunk = 30 * (1 << k)
             uint64 chunk = uint64(BLOCK_MINUTES) * (uint64(1) << k);
 
-            // Проверяем rem >= chunk. В lib может не быть gte, используем gt(rem, chunk-1)
+            // Check rem >= chunk. Library may not have gte, use gt(rem, chunk-1)
             ebool ge = FHE.gt(rem, FHE.asEuint64(chunk - 1));
 
             // rem = ge ? (rem - chunk) : rem
@@ -124,27 +124,27 @@ contract ParkingFeeCalculator is ZamaEthereumConfig {
             blocks = FHE.select(ge, blocksPlus, blocks);
         }
 
-        // ceil: если остаток > 0, добавить 1 блок
+        // Ceil: if remainder > 0, add 1 block
         ebool hasRem = FHE.gt(rem, FHE.asEuint64(0));
         blocks = FHE.select(hasRem, FHE.add(blocks, FHE.asEuint64(1)), blocks);
 
-        // 3) Ограничим блоки сверху maxBlocks
+        // 3) Cap blocks at maxBlocks
         ebool tooMany = FHE.gt(blocks, FHE.asEuint64(maxBlocks));
         blocks = FHE.select(tooMany, FHE.asEuint64(maxBlocks), blocks);
 
-        // 4) fee = blocks * pricePerBlock (в центах)
+        // 4) fee = blocks * pricePerBlock (in cents)
         euint64 fee = FHE.mul(blocks, FHE.asEuint64(pricePerBlock));
 
-        // 5) Сохраняем платёж и выдаём права:
+        // 5) Store fee and grant permissions:
         _lastFee[msg.sender] = fee;
 
-        // — контракту: чтобы переиспользовать это значение в будущем
+        // - To contract: to reuse this value in future
         FHE.allowThis(_lastFee[msg.sender]);
 
-        // — пользователю: чтобы он мог сделать userDecrypt через Relayer SDK
+        // - To user: to enable userDecrypt via Relayer SDK
         FHE.allow(_lastFee[msg.sender], msg.sender);
 
-        // 6) Возвращаем хэндл пользователю
+        // 6) Return handle to user
         feeHandle = FHE.toBytes32(_lastFee[msg.sender]);
         emit Quoted(msg.sender, feeHandle);
     }
