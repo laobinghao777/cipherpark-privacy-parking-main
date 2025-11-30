@@ -84,8 +84,8 @@ The smart contract receives the encrypted minutes and calculates:
 
 All computation happens on encrypted data - the contract never sees actual values.
 
-### 3. Decrypt the Result
-Only you can decrypt the encrypted fee using your wallet's private key via the Relayer SDK's `userDecrypt` function.
+### 3. Receive Encrypted Handle
+The frontend returns the encrypted fee handle so you can keep it or decrypt it later with your preferred tooling (for example, via CLI scripts that call the Relayer SDK).
 
 ## Smart Contract
 
@@ -108,6 +108,7 @@ function quote(externalEuint64 minutesExt, bytes calldata proof)
 | `VITE_CONTRACT_ADDRESS` | Deployed contract address | Required |
 | `VITE_CHAIN_ID` | Sepolia chain ID | 11155111 |
 | `VITE_GATEWAY_URL` | Zama Gateway URL | https://gateway.sepolia.zama.ai |
+| `VITE_RELAYER_URL` | Override the relayer base URL | Optional |
 
 ## FHE Configuration (Sepolia)
 

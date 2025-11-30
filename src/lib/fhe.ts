@@ -8,10 +8,19 @@ import {
   SepoliaConfig as SDKSepoliaConfig,
 } from '@zama-fhe/relayer-sdk/web';
 import { getAddress, hexlify } from 'ethers';
-import type { Signer } from 'ethers';
 
 // Use SDK's built-in Sepolia config (FHEVM 0.9.1)
-export const SepoliaConfig = SDKSepoliaConfig;
+const envRelayerUrl =
+  typeof import.meta.env.VITE_RELAYER_URL === 'string'
+    ? import.meta.env.VITE_RELAYER_URL.trim()
+    : '';
+const resolvedRelayerUrl =
+  envRelayerUrl || SDKSepoliaConfig.relayerUrl;
+
+export const SepoliaConfig = {
+  ...SDKSepoliaConfig,
+  relayerUrl: resolvedRelayerUrl,
+};
 
 // FHE Instance type
 export type FheInstance = Awaited<ReturnType<typeof createInstance>>;
@@ -127,78 +136,4 @@ export async function encryptParkingMinutes(
   console.log('[FHE] Encryption complete');
 
   return result;
-}
-
-/**
- * Decrypt a value using user's private key (userDecrypt)
- * @param handle - The encrypted value handle (bytes32)
- * @param contractAddress - The contract that holds the value
- * @param signer - Ethers signer for signing the decryption request
- */
-const USER_DECRYPT_VALIDITY_DAYS = 1;
-const USER_DECRYPT_START_DRIFT_SEC = 60;
-
-export async function userDecrypt(
-  handle: string,
-  contractAddress: string,
-  signer: Signer
-): Promise<bigint> {
-  const fhe = await initializeFHE();
-  const normalizedContract = getAddress(contractAddress);
-  const normalizedHandle = hexlify(handle as `0x${string}`) as `0x${string}`;
-  const handles = [
-    {
-      handle: normalizedHandle,
-      contractAddress: normalizedContract,
-    },
-  ];
-
-  const userAddress = getAddress(await signer.getAddress());
-  const { publicKey, privateKey } = fhe.generateKeypair();
-
-  const startTimestamp = Math.floor(Date.now() / 1000) - USER_DECRYPT_START_DRIFT_SEC;
-  const durationDays = USER_DECRYPT_VALIDITY_DAYS;
-  const typedData = fhe.createEIP712(
-    publicKey,
-    [normalizedContract],
-    startTimestamp,
-    durationDays
-  );
-  const { domain, message } = typedData;
-  const { EIP712Domain: _domain, ...types } = typedData.types;
-  const signature = await signer.signTypedData(domain, types, message);
-
-  console.log('[FHE] Requesting user decryption...');
-  const clearValues = await fhe.userDecrypt(
-    handles,
-    privateKey,
-    publicKey,
-    signature,
-    [normalizedContract],
-    userAddress,
-    startTimestamp,
-    durationDays
-  );
-  const value =
-    clearValues[normalizedHandle] ??
-    clearValues[normalizedHandle.toLowerCase() as `0x${string}`];
-
-  if (value === undefined) {
-    throw new Error('Decryption result missing expected handle');
-  }
-
-  const result = typeof value === 'bigint' ? value : BigInt(value);
-  console.log('[FHE] Decryption complete:', result);
-
-  return result;
-}
-
-/**
- * Format a fee value (in cents) to display format
- * @param cents - Fee in cents
- * @returns Formatted string (e.g., "$1.50")
- */
-export function formatFee(cents: bigint | number): string {
-  const centsNum = typeof cents === 'bigint' ? Number(cents) : cents;
-  return `$${(centsNum / 100).toFixed(2)}`;
 }

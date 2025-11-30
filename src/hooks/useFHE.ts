@@ -7,11 +7,9 @@ import {
   initializeFHE,
   isFHEInitialized,
   encryptParkingMinutes,
-  userDecrypt,
-  formatFee,
   type FheInstance,
 } from '@/lib/fhe';
-import { CONTRACT_ADDRESS, callQuote, getSigner } from '@/lib/contract';
+import { CONTRACT_ADDRESS, callQuote } from '@/lib/contract';
 
 interface FHEState {
   isInitialized: boolean;
@@ -58,13 +56,10 @@ export function useFHE() {
 interface CalculateFeeResult {
   feeHandle: string;
   txHash: string;
-  decryptedFee: bigint | null;
-  formattedFee: string | null;
 }
 
 interface UseCalculateFeeState {
   isCalculating: boolean;
-  isDecrypting: boolean;
   error: string | null;
   result: CalculateFeeResult | null;
 }
@@ -75,7 +70,6 @@ interface UseCalculateFeeState {
 export function useCalculateFee() {
   const [state, setState] = useState<UseCalculateFeeState>({
     isCalculating: false,
-    isDecrypting: false,
     error: null,
     result: null,
   });
@@ -115,27 +109,13 @@ export function useCalculateFee() {
       console.log('[useCalculateFee] Calling contract...');
       const { txHash, feeHandle } = await callQuote(handle, inputProof);
 
-      setState(prev => ({
-        ...prev,
-        isCalculating: false,
-        isDecrypting: true,
-      }));
-
-      // Step 4: Decrypt the result
-      console.log('[useCalculateFee] Decrypting result...');
-      const signer = await getSigner();
-      const decryptedFee = await userDecrypt(feeHandle, CONTRACT_ADDRESS, signer);
-
       const result: CalculateFeeResult = {
         feeHandle,
         txHash,
-        decryptedFee,
-        formattedFee: formatFee(decryptedFee),
       };
 
       setState({
         isCalculating: false,
-        isDecrypting: false,
         error: null,
         result,
       });
@@ -145,7 +125,6 @@ export function useCalculateFee() {
       console.error('[useCalculateFee] Error:', error);
       setState({
         isCalculating: false,
-        isDecrypting: false,
         error: error.message || 'Failed to calculate fee',
         result: null,
       });
@@ -156,7 +135,6 @@ export function useCalculateFee() {
   const reset = useCallback(() => {
     setState({
       isCalculating: false,
-      isDecrypting: false,
       error: null,
       result: null,
     });

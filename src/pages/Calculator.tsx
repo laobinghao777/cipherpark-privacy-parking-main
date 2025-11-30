@@ -10,7 +10,6 @@ import {
   DollarSign,
   Loader2,
   Lock,
-  Unlock,
   ExternalLink,
   AlertCircle,
   CheckCircle2,
@@ -41,7 +40,7 @@ const Calculator = () => {
   const { toast } = useToast();
   const wallet = useWallet();
   const fhe = useFHE();
-  const { isCalculating, isDecrypting, error, result, calculateFee, reset } = useCalculateFee();
+  const { isCalculating, error, result, calculateFee, reset } = useCalculateFee();
 
   // Load contract info on mount and when connected
   useEffect(() => {
@@ -108,8 +107,8 @@ const Calculator = () => {
 
     if (calcResult) {
       toast({
-        title: "Fee Calculated",
-        description: `Your encrypted parking fee: ${calcResult.formattedFee}`,
+        title: "Encrypted Fee Ready",
+        description: `Handle: ${calcResult.feeHandle.slice(0, 10)}...`,
       });
     }
   };
@@ -237,7 +236,7 @@ const Calculator = () => {
                   value={hours}
                   onChange={(e) => setHours(e.target.value)}
                   className="bg-background/50"
-                  disabled={isCalculating || isDecrypting}
+                  disabled={isCalculating}
                 />
               </div>
               <div className="space-y-2">
@@ -251,7 +250,7 @@ const Calculator = () => {
                   value={minutes}
                   onChange={(e) => setMinutes(e.target.value)}
                   className="bg-background/50"
-                  disabled={isCalculating || isDecrypting}
+                  disabled={isCalculating}
                 />
               </div>
             </div>
@@ -281,7 +280,6 @@ const Calculator = () => {
                 onClick={handleCalculate}
                 disabled={
                   isCalculating ||
-                  isDecrypting ||
                   !wallet.isConnected ||
                   !CONTRACT_ADDRESS ||
                   fhe.isInitializing
@@ -298,11 +296,6 @@ const Calculator = () => {
                     <Lock className="mr-2 h-4 w-4 animate-pulse" />
                     Encrypting & Computing...
                   </>
-                ) : isDecrypting ? (
-                  <>
-                    <Unlock className="mr-2 h-4 w-4 animate-pulse" />
-                    Decrypting Result...
-                  </>
                 ) : (
                   <>
                     <CalcIcon className="mr-2 h-4 w-4" />
@@ -313,7 +306,7 @@ const Calculator = () => {
               <Button
                 onClick={handleReset}
                 variant="outline"
-                disabled={isCalculating || isDecrypting}
+                disabled={isCalculating}
               >
                 Reset
               </Button>
@@ -330,8 +323,13 @@ const Calculator = () => {
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Calculated Fee</p>
-                    <p className="text-4xl font-bold gradient-text">{result.formattedFee}</p>
+                    <p className="text-sm text-muted-foreground">Encrypted Fee Handle</p>
+                    <p className="font-mono text-sm break-all bg-background/40 rounded-lg px-4 py-3 border border-border/40">
+                      {result.feeHandle}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Store this handle to decrypt later with your preferred tooling.
+                    </p>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>
@@ -356,7 +354,8 @@ const Calculator = () => {
               <p className="text-sm text-muted-foreground">
                 <span className="text-primary font-semibold">Privacy Note:</span> Your parking
                 duration is encrypted using FHE before transmission. The fee is calculated on
-                encrypted data, and only you can decrypt the result with your private key.
+                encrypted data, and the dapp now returns the encrypted handle for you to decrypt on
+                your own schedule.
               </p>
             </div>
           </div>
@@ -393,9 +392,10 @@ const Calculator = () => {
                 3
               </div>
               <div>
-                <p className="font-medium">Decrypt the Result</p>
+                <p className="font-medium">Receive Encrypted Handle</p>
                 <p className="text-sm text-muted-foreground">
-                  Only you can decrypt the encrypted fee using your wallet's private key
+                  The app returns an encrypted fee handle so you can store it or decrypt later with
+                  external tooling
                 </p>
               </div>
             </div>
